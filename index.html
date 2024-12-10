@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Поиск мест в Ростове-на-Дону</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        /* Базовый стиль для всего сайта */
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+    
+        /* Шапка сайта */
+        header {
+            background-color: #2196f3;
+            color: white;
+            text-align: center;
+            padding: 20px 0;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            font-size: 24px;
+            font-weight: bold;
+        }
+    
+        /* Карта */
+        #map {
+            width: 100%;
+            height: 600px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin: 20px auto;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+    
+        /* Контейнер управления */
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+    
+        /* Поле ввода */
+        .controls input {
+            padding: 12px;
+            font-size: 16px;
+            width: 60%;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            margin-right: 10px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+    
+        .controls input:focus {
+            outline: none;
+            border-color: #2196f3;
+            box-shadow: 0 2px 5px rgba(33, 150, 243, 0.3);
+        }
+    
+        /* Кнопки */
+        .controls button {
+            padding: 12px 24px;
+            background-color: #42a5f5;
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            text-transform: uppercase;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+    
+        .controls button:hover {
+            background-color: #1e88e5;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+    
+        /* Карточка Popup */
+        .popup-card {
+            font-family: 'Roboto', Arial, sans-serif;
+            width: 300px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            background-color: #fff;
+        }
+    
+        /* Изображение в карточке */
+        .popup-card img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-bottom: 1px solid #ddd;
+        }
+    
+        /* Текстовая информация в карточке */
+        .popup-card .info {
+            padding: 10px;
+        }
+    
+        .popup-card h3 {
+            margin: 0 0 10px;
+            font-size: 18px;
+            color: #333;
+            font-weight: bold;
+        }
+    
+        .popup-card p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #666;
+        }
+    
+        /* Кнопка в карточке */
+        .popup-card button {
+            display: block;
+            width: 100%;
+            margin-top: 10px;
+            padding: 10px 0;
+            font-size: 16px;
+            color: white;
+            background-color: #42a5f5;
+            border: none;
+            cursor: pointer;
+            border-radius: 0 0 8px 8px;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: background-color 0.3s ease;
+        }
+    
+        .popup-card button:hover {
+            background-color: #1e88e5;
+        }
+    
+        /* Анимация нажатия кнопки */
+        .controls button:active, .popup-card button:active {
+            transform: scale(0.98);
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Найти места поблизости в Ростове-на-Дону</h1>
+</header>
+
+<div class="controls">
+    <input type="text" id="searchQuery" placeholder="Введите, что вы ищете (например, кафе, аптека, магазин)" />
+    <button onclick="findPlaces()">Поиск</button>
+</div>
+
+<div id="map"></div>
+
+<script>
+    // Инициализация карты
+const map = L.map('map').setView([47.2357, 39.7015], 13); // Центр Ростова-на-Дону
+
+// Добавляем слой карты из OpenStreetMap
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+}).addTo(map);
+
+let userMarker;
+let userLocation;
+let routeLayer;
+
+// Определяем текущую геолокацию пользователя
+map.locate({ setView: true, maxZoom: 14 });
+
+map.on('locationfound', function (e) {
+    if (userMarker) {
+        map.removeLayer(userMarker);
+    }
+
+    userMarker = L.marker(e.latlng).addTo(map)
+        .bindPopup('Вы здесь')
+        .openPopup();
+
+    userLocation = e.latlng;
+});
+
+map.on('locationerror', function () {
+    alert("Не удалось определить местоположение. Карта начнет с центра Ростова-на-Дону.");
+});
+
+// Функция поиска мест по пользовательскому запросу
+function findPlaces() {
+    const query = document.getElementById('searchQuery').value;
+
+    if (!query) {
+        alert("Введите то, что вы хотите найти.");
+        return;
+    }
+
+    // Очищаем карту от старых маркеров и маршрутов
+    clearMap();
+
+    const bbox = map.getBounds(); // Получаем текущие границы карты
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&bounded=1&viewbox=${bbox.getWest()},${bbox.getNorth()},${bbox.getEast()},${bbox.getSouth()}&limit=15`;
+
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.length === 0) {
+                alert("Места поблизости не найдены!");
+                return;
+            }
+
+            data.forEach(place => {
+                const lat = parseFloat(place.lat);
+                const lon = parseFloat(place.lon);
+                const name = place.display_name;
+
+                // Добавляем маркер на карту
+                const placeMarker = L.marker([lat, lon]).addTo(map);
+
+                // Добавляем всплывающее окно с информацией о месте
+                placeMarker.bindPopup(`
+                    <div class="popup-card">
+                        <img src="https://kartinki.pics/uploads/posts/2022-12/1670431829_3-kartinkin-net-p-serii-kvadrat-kartinka-oboi-3.jpg" alt="${name}">
+                        <div class="info">
+                            <h3>${name}</h3>
+                            <p>Координаты: ${lat.toFixed(4)}, ${lon.toFixed(4)}</p>
+                            <button onclick="navigateTo([${lat}, ${lon}])" class="navigate-btn">Отправиться</button>
+                        </div>
+                    </div>
+                `);
+            });
+        })
+        .catch(error => {
+            console.error("Ошибка поиска мест:", error);
+            alert("Не удалось выполнить поиск. Попробуйте еще раз.");
+        });
+}
+
+// Функция построения маршрута до выбранного места
+function navigateTo(destination) {
+    if (!userLocation) {
+        alert("Местоположение пользователя не определено!");
+        return;
+    }
+
+    const routingUrl = `https://router.project-osrm.org/route/v1/driving/${userLocation.lng},${userLocation.lat};${destination[1]},${destination[0]}?overview=full&geometries=geojson`;
+
+    fetch(routingUrl)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.routes || data.routes.length === 0) {
+                alert("Маршрут не найден!");
+                return;
+            }
+
+            const route = data.routes[0].geometry;
+
+            // Удаляем предыдущий маршрут, если он есть
+            if (routeLayer) {
+                map.removeLayer(routeLayer);
+            }
+
+            // Отображаем маршрут на карте
+            routeLayer = L.geoJSON(route, {
+                style: {
+                    color: '#42a5f5',
+                    weight: 4
+                }
+            }).addTo(map);
+
+            // Увеличиваем масштаб, чтобы показать весь маршрут
+            const bounds = L.geoJSON(route).getBounds();
+            map.fitBounds(bounds);
+        })
+        .catch(error => {
+            console.error("Ошибка построения маршрута:", error);
+            alert("Не удалось построить маршрут. Попробуйте позже.");
+        });
+}
+
+// Функция очистки карты от старых данных
+function clearMap() {
+    map.eachLayer(function (layer) {
+        if (layer instanceof L.Marker && layer !== userMarker) {
+            map.removeLayer(layer);
+        }
+        if (routeLayer) {
+            map.removeLayer(routeLayer);
+        }
+    });
+}
+</script>
+</body>
+</html>
